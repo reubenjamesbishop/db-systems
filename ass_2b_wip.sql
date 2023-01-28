@@ -22,6 +22,12 @@ create domain NameValue as VARCHAR(50);
 
 create domain LongNameValue as VARCHAR(100);
 
+create domain SafetyLevelValue as VARCHAR(10) check (value in ('safe', 'moderate', 'restricted'));
+
+create domain VisibilityValue as VARCHAR(14) check (value in ('private', 'friends', 'family', 'friends+family', 'public'));
+
+create domain RatingValue as INTEGER check (value between 0 and 5);
+
 
 -- Entity Tables
 
@@ -30,11 +36,13 @@ CREATE TABLE People (
     person_id INTEGER, -- or SERIAL (?)
     family_name NameValue NOT NULL, --i.e. "Smith"
     given_names NameValue NOT NULL, --i.e. "John Michael Adam"
-    displayed_name LongNameValue DEFAULT (given_names || family_name) --fine, b/c both are NOT NULL
+    displayed_name LongNameValue DEFAULT NULL, -- assuming that family and given name values are strictly NOT NULL (update later)
     email_address EmailValue,
 
 	PRIMARY KEY (person_id)
 );
+
+UPDATE People SET displayed_name = (given_names || family_name) WHERE displayed_name IS NULL;  -- replace NULL displayed names with concat of given and family names -- should be ALTER TABLE (?)
 
 CREATE TABLE Users (
     
@@ -42,23 +50,24 @@ CREATE TABLE Users (
     website URLValue, --not necessarily unique, assuming multiple people can share a website
     DATE_registered DATE DEFAULT CURRENT_DATE,
     gender GenderValue,
-    birthday DATE,
+    birthday DATE, --check not in future (?)
     password VARCHAR(20) NOT NULL, -- ok (?)
 
     FOREIGN KEY (person) references People(person_id),
-    FOREIGN KEY (user_portrait) references Photos(photo_id),
-    FOREIGN KEY (email) references People(person_id) UNIQUE NOT NULL,
-    FOREIGN KEY (own) references Friend(friend_id),
-    PRIMARY KEY (person),
+    --FOREIGN KEY (user_portrait) references Photos(photo_id), -- (?) ALTER TABLE LATER!
+    --FOREIGN KEY (email_address) references People(person_id) UNIQUE NOT NULL, -- (?) FIX THIS, email comes from People
+    --FOREIGN KEY (own) references Friend(friend_id), (?) No reference to friend in user table, friend referenecs user instead
+    PRIMARY KEY (person)
 );
 
 CREATE TABLE Groups (
     
-    group_id INTEGER,
-    mode VARCHAR(13) CHECK (VALUE IN ('private', 'by-invitation', 'by-request')), -- do we need NOT NULL too? (?)\
-    title TEXT NOT NULL, --i.e. "Family"
+    group_id    INTEGER,
+    mode        GroupModeValue,
+    title       TEXT NOT NULL, --i.e. "Family"
+    owned_by    INTEGER NOT NULL,
 
-    owned_by INTEGER REFERENCES User(person) NOT NULL,
+    FOREIGN KEY (owned_by) REFERENCES Users(person),
 	PRIMARY KEY (group_id)
 );
 
@@ -70,12 +79,13 @@ CREATE TABLE Photos (
     DATE_uploaded DATE DEFAULT CURRENT_DATE,
     description TEXT, -- is description a key word (?)
     technical_details TEXT,
-    safety_level VARCHAR(10) CHECK (VALUE IN ('safe', 'moderate', 'restricted')) NOT NULL,
-    visibility VARCHAR(14) CHECK (VALUE IN ('private', 'friends', 'family', 'friends+family', 'public')) NOT NULL,
+    safety_level SafetyLevelValue NOT NULL,
+    visibility VisibilityValue NOT NULL,
     file_size INTEGER NOT NULL,
+    owned_by    INTEGER UNIQUE NOT NULL, --UNIQUE= (?)
 
-    owned_by references Users(Person) UNIQUE NOT NULL,
-	PRIMARY KEY (id)
+    FOREIGN KEY (owned_by) REFERENCES Users(person),
+	PRIMARY KEY (photo_id)
 );
 
 CREATE TABLE Friends (
@@ -88,7 +98,7 @@ CREATE TABLE Friends (
 );
 
 CREATE TABLE Tags (
-    tag_id INTEGER
+    tag_id INTEGER,
     freq SERIAL,  --refers to tag count, auto-incremented INTEGER
     name NameValue, 
 
@@ -101,14 +111,14 @@ CREATE TABLE Collections (
     title NameValue NOT NULL,
     description TEXT, 
 
-    key_photo INTEGER REFERENCES Photo(photo_id) NOT NULL,
+    key_photo INTEGER REFERENCES Photos(photo_id) NOT NULL,
 	PRIMARY KEY (collection_id)
 );
 
 CREATE TABLE UserCollections (
     
     collection INTEGER,
-    owned_by TEXT REFERENCES Users(Person) NOT NULL,
+    owned_by INTEGER REFERENCES Users(Person) NOT NULL,
 
     PRIMARY KEY (collection),
     FOREIGN KEY (collection) REFERENCES Collections(collection_id)
@@ -117,7 +127,7 @@ CREATE TABLE UserCollections (
 CREATE TABLE GroupCollections (
 
 	collection INTEGER,
-    owned_by TEXT REFERENCES Groups(group_id) NOT NULL,
+    owned_by INTEGER REFERENCES Groups(group_id) NOT NULL,
 
     PRIMARY KEY (collection),
     FOREIGN KEY (collection) REFERENCES Collections(collection_id)
@@ -138,11 +148,10 @@ CREATE TABLE Comments (
     content TEXT NOT NULL,
 
     discussion INTEGER REFERENCES Discussions(discussion_id) NOT NULL,
-    authored_by INTEGER REFERENCES Users(person) NOT NULL, -- (?)
+    authored_by INTEGER REFERENCES Users(person) NOT NULL,
 
 	PRIMARY KEY (comment_id)
 );
-
 
 -- Relation Tables
 
@@ -157,21 +166,26 @@ CREATE TABLE FriendMembers (
 
 CREATE TABLE GroupMembers (
 
-    -- add group owner as member by default?
-    group INTEGER REFERENCES Groups(group_id) NOT NULL,  -- TBD (?)
-    user INTEGER REFERENCES Users(Person),
-	
-    PRIMARY KEY (user, group)
+
+    --group INTEGER REFERENCES Groups(group_id) NOT NULL,  -- TBD (?)   -- add group owner as member by default?
+    --user INTEGER REFERENCES Users(Person),
+
+    group_id INTEGER REFERENCES Groups(group_id) NOT NULL,
+	user_id INTEGER REFERENCES People(person_id),
+
+    PRIMARY KEY (user_id, group_id)
 );
+
 
 CREATE TABLE PhotoRatings (
 
     when_rated timestamp DEFAULT CURRENT_TIMESTAMP, 
-    rating INTEGER CHECK (VALUE IN (1, 2, 3, 4, 5)), 
+    --rating INTEGER CHECK(rating between 0 and 5), -- rating must be between 0 and 5
+    rating RatingValue,
     
-    user INTEGER REFERENCES Users(Person),
+    user_id INTEGER REFERENCES Users(Person),
     photo INTEGER REFERENCES Photos(photo_id),
-    PRIMARY KEY (user, photo)
+    PRIMARY KEY (user_id, photo)
 
 );
 
@@ -184,13 +198,11 @@ CREATE TABLE Photos_in_Tags (
     PRIMARY KEY (photo, tag)
 );
 
-
 CREATE TABLE Photos_in_Collections (
 
     collection_id INTEGER REFERENCES Collections(collection_id) NOT NULL,
     photo_id INTEGER REFERENCES Photos(photo_id) NOT NULL,
-    
-    order INTEGER CHECK (order > 0)  -- order/rank to allow ordering/ranking of photos
+    "order" INTEGER CHECK ("order" > 0),  -- order/rank to allow ordering/ranking of photos
     PRIMARY KEY (collection_id, photo_id)
 
 );
