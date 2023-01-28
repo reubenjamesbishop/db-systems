@@ -158,7 +158,7 @@ CREATE TABLE Comments (
 	PRIMARY KEY (comment_id)
 );
 
-ALTER TABLE Comments ADD repliesTo INTEGER REFERENCES Comments(comment_id);
+ALTER TABLE Comments ADD reply_to INTEGER REFERENCES Comments(comment_id);
 
 -- Relation Tables
 
