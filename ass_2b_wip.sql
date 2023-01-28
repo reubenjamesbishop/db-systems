@@ -91,15 +91,16 @@ CREATE TABLE Photos (
 CREATE TABLE Friends (
 
     friend_id   INTEGER,
-    title       TEXT NOT NULL, -- i.e. "Family", "Workmates", "Friends"
+    title       TEXT NOT NULL,
+    owned_by    INTEGER NOT NULL,
 
-    owned_by INTEGER REFERENCES Users(Person) NOT NULL,
+    FOREIGN KEY (owned_by) REFERENCES Users(Person),
 	PRIMARY KEY (friend_id)
 );
 
 CREATE TABLE Tags (
     tag_id  INTEGER,
-    freq    SERIAL,  --refers to tag count, auto-incremented INTEGER
+    freq    SERIAL,  -- Note: refers to tag count, auto-incremented INTEGER
     name    NameValue, 
 
 	PRIMARY KEY (tag_id)
@@ -110,27 +111,30 @@ CREATE TABLE Collections (
     collection_id   INTEGER,
     title           NameValue NOT NULL,
     description     TEXT, 
+    key_photo       INTEGER NOT NULL,
 
-    key_photo INTEGER REFERENCES Photos(photo_id) NOT NULL,
+    FOREIGN KEY (key_photo) REFERENCES Photos(photo_id),
 	PRIMARY KEY (collection_id)
 );
 
 CREATE TABLE UserCollections (
     
     collection  INTEGER,
-    owned_by    INTEGER REFERENCES Users(Person) NOT NULL,
+    owned_by    INTEGER NOT NULL,
 
-    PRIMARY KEY (collection),
-    FOREIGN KEY (collection) REFERENCES Collections(collection_id)
+    FOREIGN KEY (collection) REFERENCES Collections(collection_id),
+    FOREIGN KEY (owned_by) REFERENCES Users(Person),
+    PRIMARY KEY (collection)
 );
 
 CREATE TABLE GroupCollections (
 
 	collection  INTEGER,
-    owned_by    INTEGER REFERENCES Groups(group_id) NOT NULL,
+    owned_by    INTEGER NOT NULL,
 
-    PRIMARY KEY (collection),
-    FOREIGN KEY (collection) REFERENCES Collections(collection_id)
+    FOREIGN KEY (collection) REFERENCES Collections(collection_id),
+    FOREIGN KEY (owned_by) REFERENCES Groups(group_id),
+    PRIMARY KEY (collection)
 );
 
 CREATE TABLE Discussions(
@@ -146,33 +150,34 @@ CREATE TABLE Comments (
     comment_id      INTEGER,
     when_posted     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     content         TEXT NOT NULL,
+    discussion      INTEGER NOT NULL,
+    authored_by     INTEGER NOT NULL,
 
-    discussion      INTEGER REFERENCES Discussions(discussion_id) NOT NULL,
-    authored_by     INTEGER REFERENCES Users(person) NOT NULL,
-
+    FOREIGN KEY (discussion) REFERENCES Discussions(discussion_id),
+    FOREIGN KEY (authored_by) REFERENCES Users(person),
 	PRIMARY KEY (comment_id)
 );
 
 -- Relation Tables
 
 CREATE TABLE FriendMembers (
-
     -- this needs a check... (?)
-    person      INTEGER REFERENCES People(person_id),
-    friend      INTEGER REFERENCES Friends(friend_id) NOT NULL,
+    
+    person  INTEGER NOT NULL,
+    friend  INTEGER NOT NULL,
 
+    FOREIGN KEY (person) REFERENCES People(person_id),
+    FOREIGN KEY (friend) REFERENCES Friends(friend_id), --or another person?
 	PRIMARY KEY (person, friend)
 );
 
 CREATE TABLE GroupMembers (
+    -- add group owner as member by default (?)
+    group_id    INTEGER NOT NULL,
+    user_id     INTEGER,
 
-
-    --group INTEGER REFERENCES Groups(group_id) NOT NULL,  -- TBD (?)   -- add group owner as member by default?
-    --user INTEGER REFERENCES Users(Person),
-
-    group_id    INTEGER REFERENCES Groups(group_id) NOT NULL,
-	user_id     INTEGER REFERENCES People(person_id),
-
+    FOREIGN KEY (group_id) REFERENCES Groups(group_id),
+    FOREIGN KEY (user_id) REFERENCES People(person_id),
     PRIMARY KEY (user_id, group_id)
 );
 
@@ -181,28 +186,34 @@ CREATE TABLE PhotoRatings (
 
     when_rated  TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
     rating      RatingValue,
-    
-    user_id     INTEGER REFERENCES Users(Person),
-    photo       INTEGER REFERENCES Photos(photo_id),
+    user_id     INTEGER,
+    photo       INTEGER,
+
+    FOREIGN KEY (user_id) REFERENCES Users(Person),
+    FOREIGN KEY (photo) REFERENCES Photos(photo_id),
     PRIMARY KEY (user_id, photo)
 
 );
 
 CREATE TABLE Photos_in_Tags (
 
-    when_tagged     TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, 
+    when_tagged TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, 
+    tag         INTEGER,
+    photo       INTEGER,
 
-    tag             INTEGER REFERENCES Tags(tag_id),
-    photo           INTEGER REFERENCES Photos(photo_id),
+    FOREIGN KEY (tag) REFERENCES Tags(tag_id),
+    FOREIGN KEY (photo) REFERENCES Photos(photo_id),
     PRIMARY KEY (photo, tag)
 );
 
 CREATE TABLE Photos_in_Collections (
 
-    collection_id       INTEGER REFERENCES Collections(collection_id) NOT NULL,
-    photo_id            INTEGER REFERENCES Photos(photo_id) NOT NULL,
-    "order"             INTEGER CHECK ("order" > 0),  -- order/rank to allow ordering/ranking of photos
-    
+    "order"         INTEGER CHECK ("order" > 0),  -- order/rank to allow ordering/ranking of photos
+    collection_id   INTEGER NOT NULL,
+    photo_id        INTEGER NOT NULL,
+
+    FOREIGN KEY (collection_id) REFERENCES Collections(collection_id),
+    FOREIGN KEY (photo_id) REFERENCES Photos(photo_id),
     PRIMARY KEY (collection_id, photo_id)
 
 );
