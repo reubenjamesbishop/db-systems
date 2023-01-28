@@ -160,7 +160,7 @@ CREATE TABLE Comments (
 
 -- Relation Tables
 
-CREATE TABLE FriendMembers (
+CREATE TABLE Person_member_Friends (
     -- this needs a check... (?)
     
     person  INTEGER NOT NULL,
@@ -171,31 +171,31 @@ CREATE TABLE FriendMembers (
 	PRIMARY KEY (person, friend)
 );
 
-CREATE TABLE GroupMembers (
+CREATE TABLE Users_member_Groups (
     -- add group owner as member by default (?)
-    group_id    INTEGER NOT NULL,
-    user_id     INTEGER,
+    "group"    INTEGER NOT NULL,
+    "user"     INTEGER,
 
-    FOREIGN KEY (group_id) REFERENCES Groups(group_id),
-    FOREIGN KEY (user_id) REFERENCES People(person_id),
-    PRIMARY KEY (user_id, group_id)
+    FOREIGN KEY ("group") REFERENCES Groups(group_id),
+    FOREIGN KEY ("user") REFERENCES People(person_id),
+    PRIMARY KEY ("user", "group")
 );
 
 
-CREATE TABLE PhotoRatings (
+CREATE TABLE Users_rating_Photos (
 
     when_rated  TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
     rating      RatingValue,
-    user_id     INTEGER,
+    "user"      INTEGER,
     photo       INTEGER,
 
-    FOREIGN KEY (user_id) REFERENCES Users(Person),
+    FOREIGN KEY ("user") REFERENCES Users(Person),
     FOREIGN KEY (photo) REFERENCES Photos(photo_id),
-    PRIMARY KEY (user_id, photo)
+    PRIMARY KEY ("user", photo)
 
 );
 
-CREATE TABLE Photos_in_Tags (
+CREATE TABLE Photos_have_Tags (
 
     when_tagged TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, 
     tag         INTEGER,
@@ -215,5 +215,16 @@ CREATE TABLE Photos_in_Collections (
     FOREIGN KEY (collection_id) REFERENCES Collections(collection_id),
     FOREIGN KEY (photo_id) REFERENCES Photos(photo_id),
     PRIMARY KEY (collection_id, photo_id)
+
+);
+
+CREATE TABLE Groups_have_Discussions(
+
+    "group"         INTEGER,
+    "discussion"    INTEGER,
+
+    FOREIGN KEY ("group") REFERENCES Groups(group_id),
+    FOREIGN KEY ("discussion") REFERENCES Discussions(discussion_id),
+    PRIMARY KEY ("group", "discussion")
 
 );
