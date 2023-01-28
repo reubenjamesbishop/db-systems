@@ -33,38 +33,36 @@ create domain RatingValue as INTEGER check (value between 0 and 5);
 
 CREATE TABLE People (
 	
-    person_id                       INTEGER, -- or SERIAL (?)
-    family_name NameValue           NOT NULL, --i.e. "Smith"
-    given_names NameValue           NOT NULL, --i.e. "John Michael Adam"
-    displayed_name LongNameValue    DEFAULT NULL, -- assuming that family and given name values are strictly NOT NULL (update later)
-    email_address EmailValue,
+    person_id                   INTEGER,
+    family_name                 NameValue NOT NULL,
+    given_names                 NameValue NOT NULL,
+    displayed_name              LongNameValue, -- ASSUMPTION: mypics.net will create this value if not set initially
+    email_address               EmailValue, -- ASSUMPTION: Email can be NULL at the Person level. 
 
 	PRIMARY KEY (person_id)
 );
 
-UPDATE People SET displayed_name = (given_names || family_name) WHERE displayed_name IS NULL;  -- replace NULL displayed names with concat of given and family names -- should be ALTER TABLE (?)
-
 CREATE TABLE Users (
     
     person              INTEGER,
-    website             URLValue, --not necessarily unique, assuming multiple people can share a website
-    DATE_registered     DATE DEFAULT CURRENT_DATE,
+    website             URLValue, --ASSUMPTION: not necessarily unique, assuming multiple people can share a website
+    date_registered     DATE DEFAULT CURRENT_DATE, --ASSUMPTION: left as default value by mypics.net
     gender              GenderValue,
-    birthday            DATE, --check not in future (?)
-    password            VARCHAR(20) NOT NULL, -- ok (?)
-    
-    --FOREIGN KEY (user_portrait) references Photos(photo_id), -- (?) ALTER TABLE LATER!
-    --FOREIGN KEY (email_address) references People(person_id) UNIQUE NOT NULL, -- (?) FIX THIS, email comes from People
-    --FOREIGN KEY (own) references Friend(friend_id), (?) No reference to friend in user table, friend referenecs user instead
-    FOREIGN KEY (person) references People(person_id),
+    birthday            DATE CHECK (birthday < CURRENT_DATE),
+    password            VARCHAR(100) NOT NULL, --ASSUMPTION: password max 100 characters
+    email_address       EmailValue NOT NULL, --ASSUMPTION: email_address mandatory for users.
+
+    -- NOTE: Additional FK referencing user's portrait photo added later with ALTER TABLE statement
+    FOREIGN KEY (person) REFERENCES People(person_id),
     PRIMARY KEY (person)
-);
+
+) INHERITS (People);
 
 CREATE TABLE Groups (
     
     group_id    INTEGER,
     mode        GroupModeValue,
-    title       TEXT NOT NULL, --i.e. "Family"
+    title       TEXT NOT NULL, --ASSUMPTION: Arbritrary length string, i.e. "Family", "Workmates", "Friends" 
     owned_by    INTEGER NOT NULL,
 
     FOREIGN KEY (owned_by) REFERENCES Users(person),
@@ -73,17 +71,18 @@ CREATE TABLE Groups (
 
 CREATE TABLE Photos (
 
-    photo_id            INTEGER, -- or SERIAL (?)
-    DATE_taken          DATE DEFAULT CURRENT_DATE, -- may be supplied but defaults to uploaded DATE,
-    title NameValue     NOT NULL,
-    DATE_uploaded       DATE DEFAULT CURRENT_DATE,
-    description         TEXT, -- is description a key word (?)
+    photo_id            SERIAL, 
+    date_taken          DATE,
+    title               NameValue NOT NULL,
+    date_uploaded       DATE DEFAULT CURRENT_DATE, --ASSUMPTION: The system automatically applies current date when uploaded
+    description         TEXT,
     technical_details   TEXT,
-    safety_level        SafetyLevelValue NOT NULL,
-    visibility          VisibilityValue NOT NULL,
-    file_size           INTEGER NOT NULL,
-    owned_by            INTEGER UNIQUE NOT NULL, --UNIQUE= (?)
+    safety_level        SafetyLevelValue NOT NULL, --ASSUMPTION: mandatory value
+    visibility          VisibilityValue NOT NULL, --ASSUMPTION: mandatory value
+    file_size           INTEGER NOT NULL,  --ASSUMPTION: mandatory value
+    owned_by            INTEGER NOT NULL,
 
+    --NOTEL: FK for Photos Have Discussions referenced below with Alter Table
     FOREIGN KEY (owned_by) REFERENCES Users(person),
 	PRIMARY KEY (photo_id)
 );
@@ -91,7 +90,7 @@ CREATE TABLE Photos (
 CREATE TABLE Friends (
 
     friend_id   INTEGER,
-    title       TEXT NOT NULL,
+    title       TEXT NOT NULL, --ASSUMPTION: Arbritrary length string
     owned_by    INTEGER NOT NULL,
 
     FOREIGN KEY (owned_by) REFERENCES Users(Person),
@@ -100,8 +99,8 @@ CREATE TABLE Friends (
 
 CREATE TABLE Tags (
     tag_id  INTEGER,
-    freq    SERIAL,  -- Note: refers to tag count, auto-incremented INTEGER
-    name    NameValue, 
+    freq    INTEGER CHECK (freq >= 0) NOT NULL,  --ASSUMPTION: Not computed, mandatory and maintained by mypics.net application 
+    name    NameValue NOT NULL, --ASSUMPTION: mandatory 
 
 	PRIMARY KEY (tag_id)
 );
@@ -123,7 +122,7 @@ CREATE TABLE UserCollections (
     owned_by    INTEGER NOT NULL,
 
     FOREIGN KEY (collection) REFERENCES Collections(collection_id),
-    FOREIGN KEY (owned_by) REFERENCES Users(Person),
+    FOREIGN KEY (owned_by) REFERENCES Users(person),
     PRIMARY KEY (collection)
 );
 
@@ -150,31 +149,35 @@ CREATE TABLE Comments (
     comment_id      INTEGER,
     when_posted     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     content         TEXT NOT NULL,
-    discussion      INTEGER NOT NULL,
+    contained_by    INTEGER NOT NULL,
     authored_by     INTEGER NOT NULL,
 
-    FOREIGN KEY (discussion) REFERENCES Discussions(discussion_id),
+    -- Note: Additional FK for comments replying to comments added below with Alter Table
+    FOREIGN KEY (contained_by) REFERENCES Discussions(discussion_id),
     FOREIGN KEY (authored_by) REFERENCES Users(person),
 	PRIMARY KEY (comment_id)
 );
 
+-- Addition of missing foreign keys due to table ordering.
 ALTER TABLE Comments ADD reply_to INTEGER REFERENCES Comments(comment_id);
+ALTER TABLE Users ADD user_portrait INTEGER REFERENCES Photos(photo_id);
+ALTER TABLE Photos ADD owned_discussion INTEGER REFERENCES Discussions(discussion_id);
+
 
 -- Relation Tables
 
 CREATE TABLE Person_member_Friends (
-    -- this needs a check... (?)
     
-    person  INTEGER NOT NULL,
+    person  INTEGER,
     friend  INTEGER NOT NULL,
 
     FOREIGN KEY (person) REFERENCES People(person_id),
-    FOREIGN KEY (friend) REFERENCES Friends(friend_id), --or another person?
+    FOREIGN KEY (friend) REFERENCES Friends(friend_id),
 	PRIMARY KEY (person, friend)
 );
 
 CREATE TABLE Users_member_Groups (
-    -- add group owner as member by default (?)
+
     "group"    INTEGER NOT NULL,
     "user"     INTEGER,
 
@@ -187,11 +190,11 @@ CREATE TABLE Users_member_Groups (
 CREATE TABLE Users_rating_Photos (
 
     when_rated  TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
-    rating      RatingValue,
+    rating      RatingValue NOT NULL,
     "user"      INTEGER,
     photo       INTEGER,
 
-    FOREIGN KEY ("user") REFERENCES Users(Person),
+    FOREIGN KEY ("user") REFERENCES Users(person),
     FOREIGN KEY (photo) REFERENCES Photos(photo_id),
     PRIMARY KEY ("user", photo)
 
@@ -199,8 +202,8 @@ CREATE TABLE Users_rating_Photos (
 
 CREATE TABLE Photos_have_Tags (
 
-    when_tagged TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL, 
-    tag         INTEGER,
+    when_tagged TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+    tag         INTEGER NOT NULL,
     photo       INTEGER,
 
     FOREIGN KEY (tag) REFERENCES Tags(tag_id),
@@ -210,7 +213,7 @@ CREATE TABLE Photos_have_Tags (
 
 CREATE TABLE Photos_in_Collections (
 
-    "order"         INTEGER CHECK ("order" > 0),  -- order/rank to allow ordering/ranking of photos
+    "order"         INTEGER CHECK ("order" > 0),  --Note: order/rank to allow ordering/ranking of photos
     collection_id   INTEGER NOT NULL,
     photo_id        INTEGER NOT NULL,
 
@@ -228,5 +231,17 @@ CREATE TABLE Groups_have_Discussions(
     FOREIGN KEY ("group") REFERENCES Groups(group_id),
     FOREIGN KEY ("discussion") REFERENCES Discussions(discussion_id),
     PRIMARY KEY ("group", "discussion")
+
+);
+
+CREATE TABLE Users_have_Tags(
+
+    "user"          INTEGER,
+    tag             INTEGER,
+    when_tagged     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY ("user") REFERENCES Users(person),
+    FOREIGN KEY (tag) REFERENCES Tags(tag_id),
+    PRIMARY KEY ("user", tag)
 
 );
