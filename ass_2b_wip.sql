@@ -37,7 +37,7 @@ CREATE TABLE People (
     family_name                 NameValue NOT NULL,
     given_names                 NameValue NOT NULL,
     displayed_name              LongNameValue, -- ASSUMPTION: mypics.net will create this value if not set initially
-    email_address               EmailValue, -- ASSUMPTION: Email can be NULL at the Person level. 
+    email_address               EmailValue, -- ASSUMPTION: Email can be NULL at the Person level but mandatory at User level, based on discussion board post
 
 	PRIMARY KEY (id)
 );
@@ -50,13 +50,12 @@ CREATE TABLE Users (
     gender              GenderValue,
     birthday            DATE CHECK (birthday < CURRENT_DATE),
     password            VARCHAR(100) NOT NULL, --ASSUMPTION: password max 100 characters
-    email_address       EmailValue NOT NULL, --ASSUMPTION: email_address mandatory for users.
 
     -- NOTE: Additional FK referencing user's portrait photo added later with ALTER TABLE statement
     FOREIGN KEY (person) REFERENCES People(id),
     PRIMARY KEY (person)
 
-) INHERITS (People);
+);
 
 CREATE TABLE Groups (
     
@@ -118,22 +117,22 @@ CREATE TABLE Collections (
 
 CREATE TABLE UserCollections (
     
-    collection  INTEGER,
-    owned_by    INTEGER NOT NULL,
+    usercollection_id   INTEGER,
+    owned_by            INTEGER NOT NULL,
 
-    FOREIGN KEY (collection) REFERENCES Collections(id),
+    FOREIGN KEY (usercollection_id) REFERENCES Collections(id),
     FOREIGN KEY (owned_by) REFERENCES Users(person),
-    PRIMARY KEY (collection)
+    PRIMARY KEY (usercollection_id)
 );
 
 CREATE TABLE GroupCollections (
 
-	collection  INTEGER,
-    owned_by    INTEGER NOT NULL,
+	groupcollection_id  INTEGER,
+    owned_by            INTEGER NOT NULL,
 
-    FOREIGN KEY (collection) REFERENCES Collections(id),
+    FOREIGN KEY (groupcollection_id) REFERENCES Collections(id),
     FOREIGN KEY (owned_by) REFERENCES Groups(id),
-    PRIMARY KEY (collection)
+    PRIMARY KEY (groupcollection_id)
 );
 
 CREATE TABLE Discussions(
